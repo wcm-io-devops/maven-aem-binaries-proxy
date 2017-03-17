@@ -37,25 +37,19 @@ import org.junit.Test;
 import io.dropwizard.testing.junit.ResourceTestRule;
 
 
+@SuppressWarnings("javadoc")
 public class MavenProxyResourceTest {
 
-  // test with the following NodeJS and NPM versions
-  private static final String[] NODEJS_VERSIONS = {
-      "0.12.0",
-      "4.4.0"
+  // test with the following dispatcher versions
+  private static final String[] DISPATCHER_VERSIONS = {
+      "4.2.2",
+      "LATEST"
   };
-  private static final String[] NODEJS_TARGETS = {
-      "-windows-x86.exe",
-      "-windows-x64.exe",
-      "-linux-x86.tar.gz",
-      "-linux-x64.tar.gz",
-      "-darwin-x64.tar.gz"
-  };
-  private static final String[] NPM_VERSIONS = {
-      "1.4.9"
-  };
-  private static final String[] NPM_TARGETS = {
-      ".tgz"
+  private static final String[] DISPATCHER_QUALIFIERS = {
+      "apache2.4-aix-powerpc.tar.gz",
+      "apache2.4-solaris-amd64-ssl.tar.gz",
+      "iis-windows-x86.zip",
+      "ns-solaris-amd64.tar.gz"
   };
 
   @Rule
@@ -71,9 +65,9 @@ public class MavenProxyResourceTest {
   }
 
   @Test
-  public void testGetPomNodeJS() {
-    for (String version : NODEJS_VERSIONS) {
-      String path = "/org/nodejs/dist/nodejs-binaries/" + version + "/nodejs-binaries-" + version + ".pom";
+  public void testGetPomAemBinary() {
+    for (String version : DISPATCHER_VERSIONS) {
+      String path = "/com/adobe/dispatcher/" + version + "/dispatcher-" + version + ".pom";
       Response response = context.client().target(path).request().get();
       assertResponse(path, response, MediaType.APPLICATION_XML);
       assertTrue("Content length " + path, response.getLength() > 0);
@@ -82,33 +76,10 @@ public class MavenProxyResourceTest {
   }
 
   @Test
-  public void testGetPomNPM() {
-    for (String version : NPM_VERSIONS) {
-      String path = "/org/nodejs/dist/npm-binaries/" + version + "/npm-binaries-" + version + ".pom";
-      Response response = context.client().target(path).request().get();
-      assertResponse(path, response, MediaType.APPLICATION_XML);
-      assertTrue("Content length " + path, response.getLength() > 0);
-      assertSHA1(path, response);
-    }
-  }
-
-  @Test
-  public void testGetBinaryNodeJS() {
-    for (String version : NODEJS_VERSIONS) {
-      for (String target : NODEJS_TARGETS) {
-        String path = "/org/nodejs/dist/nodejs-binaries/" + version + "/nodejs-binaries-" + version + target;
-        Response response = context.client().target(path).request().get();
-        assertResponse(path, response, MediaType.APPLICATION_OCTET_STREAM);
-        assertSHA1(path, response);
-      }
-    }
-  }
-
-  @Test
-  public void testGetBinaryNPM() {
-    for (String version : NPM_VERSIONS) {
-      for (String target : NPM_TARGETS) {
-        String path = "/org/nodejs/dist/npm-binaries/" + version + "/npm-binaries-" + version + target;
+  public void testGetBinaryAemBinary() {
+    for (String version : DISPATCHER_VERSIONS) {
+      for (String target : DISPATCHER_QUALIFIERS) {
+        String path = "/com/adobe/dispatcher/" + version + "/dispatcher-" + version + "-" + target;
         Response response = context.client().target(path).request().get();
         assertResponse(path, response, MediaType.APPLICATION_OCTET_STREAM);
         assertSHA1(path, response);

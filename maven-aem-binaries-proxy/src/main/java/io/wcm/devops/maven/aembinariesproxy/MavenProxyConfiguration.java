@@ -32,32 +32,17 @@ import io.dropwizard.client.HttpClientConfiguration;
 /**
  * Configuration for Maven AEM Binaries Proxy.
  */
+@SuppressWarnings("javadoc")
 public class MavenProxyConfiguration extends Configuration {
 
   @NotEmpty
   private String groupId;
   @NotEmpty
-  private String nodeJsArtifactId;
+  private String aemDispatcherArtifactId;
   @NotEmpty
-  private String npmArtifactId;
+  private String aemBinariesRootUrl;
   @NotEmpty
-  private String nodeJsBinariesRootUrl;
-  @NotEmpty
-  private String nodeJsBinariesUrl;
-  @NotEmpty
-  private String nodeJsBinariesUrlWindows;
-  @NotEmpty
-  private String nodeJsBinariesUrlWindowsX86Legacy;
-  @NotEmpty
-  private String nodeJsBinariesUrlWindowsX64Legacy;
-  @NotEmpty
-  private String npmBinariesUrl;
-  @NotEmpty
-  private String nodeJsChecksumUrl;
-  @NotEmpty
-  private String nodeJsSampleVersion;
-  @NotEmpty
-  private String npmSampleVersion;
+  private String aemBinariesUrlParts;
 
   @Valid
   @NotNull
@@ -69,58 +54,18 @@ public class MavenProxyConfiguration extends Configuration {
   }
 
   @JsonProperty
-  public String getNodeJsArtifactId() {
-    return this.nodeJsArtifactId;
+  public String getAemDispatcherArtifactId() {
+    return this.aemDispatcherArtifactId;
   }
 
   @JsonProperty
-  public String getNpmArtifactId() {
-    return this.npmArtifactId;
+  public String getAemBinariesRootUrl() {
+    return this.aemBinariesRootUrl;
   }
 
   @JsonProperty
-  public String getNodeJsBinariesRootUrl() {
-    return this.nodeJsBinariesRootUrl;
-  }
-
-  @JsonProperty
-  public String getNodeJsBinariesUrl() {
-    return this.nodeJsBinariesUrl;
-  }
-
-  @JsonProperty
-  public String getNodeJsBinariesUrlWindows() {
-    return this.nodeJsBinariesUrlWindows;
-  }
-
-  @JsonProperty
-  public String getNodeJsBinariesUrlWindowsX86Legacy() {
-    return this.nodeJsBinariesUrlWindowsX86Legacy;
-  }
-
-  @JsonProperty
-  public String getNodeJsBinariesUrlWindowsX64Legacy() {
-    return this.nodeJsBinariesUrlWindowsX64Legacy;
-  }
-
-  @JsonProperty
-  public String getNpmBinariesUrl() {
-    return this.npmBinariesUrl;
-  }
-
-  @JsonProperty
-  public String getNodeJsChecksumUrl() {
-    return this.nodeJsChecksumUrl;
-  }
-
-  @JsonProperty
-  public String getNodeJsSampleVersion() {
-    return this.nodeJsSampleVersion;
-  }
-
-  @JsonProperty
-  public String getNpmSampleVersion() {
-    return this.npmSampleVersion;
+  public String getAemBinariesUrlParts() {
+    return this.aemBinariesUrlParts;
   }
 
   @JsonProperty("httpClient")

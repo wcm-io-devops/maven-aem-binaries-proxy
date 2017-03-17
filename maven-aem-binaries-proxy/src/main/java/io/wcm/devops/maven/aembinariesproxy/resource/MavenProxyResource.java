@@ -22,6 +22,7 @@ package io.wcm.devops.maven.aembinariesproxy.resource;
 import static javax.ws.rs.core.HttpHeaders.CONTENT_LENGTH;
 
 import java.io.IOException;
+import java.net.URL;
 
 import javax.servlet.http.HttpServletResponse;
 import javax.ws.rs.GET;
@@ -35,10 +36,8 @@ import org.apache.commons.codec.digest.DigestUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.http.HttpResponse;
 import org.apache.http.client.methods.HttpGet;
-import org.apache.http.client.methods.HttpHead;
 import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.util.EntityUtils;
-import org.apache.maven.artifact.versioning.DefaultArtifactVersion;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -47,45 +46,62 @@ import com.codahale.metrics.annotation.Timed;
 import io.wcm.devops.maven.aembinariesproxy.MavenProxyConfiguration;
 
 /**
- * Proxies NodeJS binaries.
+ * Proxies AEM binaries.
  */
 @Path("/")
 public class MavenProxyResource {
 
   private final MavenProxyConfiguration config;
   private final CloseableHttpClient httpClient;
+  private final UrlsCache urlsCache;
+  private final CurrentVersionCache currentVersionCache;
 
   private static final Logger log = LoggerFactory.getLogger(MavenProxyResource.class);
 
+  private static final String SHA1_EXTENSION = ".sha1";
+  private static final String POM = "pom";
+
+  private static final String VERSION_LATEST = "LATEST";
+
   /**
    * @param config Configuration
+   * @param httpClient http client
    */
   public MavenProxyResource(MavenProxyConfiguration config, CloseableHttpClient httpClient) {
     this.config = config;
     this.httpClient = httpClient;
+    this.urlsCache = new UrlsCache(httpClient, config);
+    this.currentVersionCache = new CurrentVersionCache(httpClient, config);
   }
 
   /**
    * Shows index page
+   * @return HTML index page
    */
   @GET
-  @Path("/")
   @Timed
   @Produces(MediaType.TEXT_HTML)
   public String getIndex() {
-    return IndexPageBuilder.build(config);
+    return IndexPageBuilder.build(config, currentVersionCache.get());
   }
 
   /**
    * Maps POM requests simulating a Maven 2 directory structure.
+   * @param groupIdPath groupId as path
+   * @param artifactId artifactId
+   * @param version version
+   * @param artifactIdFilename artifactIdFilename
+   * @param versionFilename versionFilename
+   * @param fileExtension fileExtension
+   * @return response response
    * @throws IOException
    */
   @GET
   @Path("{groupIdPath:[a-zA-Z0-9\\-\\_]+(/[a-zA-Z0-9\\-\\_]+)*}"
       + "/{artifactId:[a-zA-Z0-9\\-\\_\\.]+}"
-      + "/{version:\\d+(\\.\\d+)*}"
+      + "/{version:\\d+(\\.\\d+)*|LATEST}"
       + "/{artifactIdFilename:[a-zA-Z0-9\\-\\_\\.]+}"
-      + "-{versionFilename:\\d+(\\.\\d+)*}"
+      + "-{versionFilename:\\d+(\\.\\d+)*|LATEST}"
       + ".{fileExtension:pom(\\.sha1)?}")
   @Timed
   public Response getPom(
@@ -97,33 +113,22 @@ public class MavenProxyResource {
       @PathParam("fileExtension") String fileExtension) throws IOException {
 
     String groupId = mapGroupId(groupIdPath);
+    if (StringUtils.equalsIgnoreCase(version, VERSION_LATEST)) {
+      version = currentVersionCache.get();
+      versionFilename = version;
+    }
     if (!validateBasicParams(groupId, artifactId, version, artifactIdFilename, versionFilename)) {
       return Response.status(Response.Status.NOT_FOUND).build();
     }
-    ArtifactType artifactType = getArtifactType(artifactId);
 
-    // validate that version exists
-    String url = getPomValidateUrl(artifactType, version);
-    log.info("Validate file: {}", url);
-    HttpHead get = new HttpHead(url);
-    HttpResponse response = httpClient.execute(get);
-    try {
-      if (response.getStatusLine().getStatusCode() != HttpServletResponse.SC_OK) {
-        return Response.status(Response.Status.NOT_FOUND).build();
-      }
-    }
-    finally {
-      EntityUtils.consumeQuietly(response.getEntity());
-    }
+    String xml = PomBuilder.build(groupId, artifactId, version, POM);
 
-    String xml = PomBuilder.build(groupId, artifactId, version, "pom");
-
-    if (StringUtils.equals(fileExtension, "pom")) {
+    if (StringUtils.equals(fileExtension, POM)) {
       return Response.ok(xml)
           .type(MediaType.APPLICATION_XML)
           .build();
     }
-    if (StringUtils.equals(fileExtension, "pom.sha1")) {
+    if (StringUtils.equals(fileExtension, POM + SHA1_EXTENSION)) {
       return Response.ok(DigestUtils.sha1Hex(xml))
           .type(MediaType.TEXT_PLAIN)
           .build();
@@ -132,16 +137,24 @@ public class MavenProxyResource {
   }
 
   /**
-   * Maps all requests to NodeJS binaries simulating a Maven 2 directory structure.
+   * Maps all requests to AEM binaries simulating a Maven 2 directory structure.
+   * @param groupIdPath groupId as path
+   * @param artifactId artifactId
+   * @param version version
+   * @param artifactIdFilename artifactIdFilename
+   * @param versionFilename versionFilename
+   * @param classifierString classifier string
+   * @param type type
+   * @return response response
+   * @throws IOException
    */
   @GET
   @Path("{groupIdPath:[a-zA-Z0-9\\-\\_]+(/[a-zA-Z0-9\\-\\_]+)*}"
       + "/{artifactId:[a-zA-Z0-9\\-\\_\\.]+}"
-      + "/{version:\\d+(\\.\\d+)*}"
+      + "/{version:\\d+(\\.\\d+)*|LATEST}"
       + "/{artifactIdFilename:[a-zA-Z0-9\\-\\_\\.]+}"
-      + "-{versionFilename:\\d+(\\.\\d+)*}"
-      + "-{os:[a-zA-Z0-9\\_]+}"
-      + "-{arch:[a-zA-Z0-9\\_]+}"
+      + "-{versionFilename:\\d+(\\.\\d+)*|LATEST}"
+      + "-{classifierString:[a-zA-Z]+[0-9\\.]*[a-zA-Z0-9\\-]+}"
       + ".{type:[a-z]+(\\.[a-z]+)*(\\.sha1)?}")
   @Timed
   public Response getBinary(
@@ -150,96 +163,33 @@ public class MavenProxyResource {
       @PathParam("version") String version,
       @PathParam("artifactIdFilename") String artifactIdFilename,
       @PathParam("versionFilename") String versionFilename,
-      @PathParam("os") String os,
-      @PathParam("arch") String arch,
+      @PathParam("classifierString") String classifierString,
       @PathParam("type") String type) throws IOException {
 
     String groupId = mapGroupId(groupIdPath);
-    if (!validateBasicParams(groupId, artifactId, version, artifactIdFilename, versionFilename)) {
-      return Response.status(Response.Status.NOT_FOUND).build();
+    if (StringUtils.equalsIgnoreCase(version, VERSION_LATEST)) {
+      version = currentVersionCache.get();
+      versionFilename = version;
     }
-    ArtifactType artifactType = getArtifactType(artifactId);
-    if (artifactType != ArtifactType.NODEJS) {
+    if (!validateBasicParams(groupId, artifactId, version, artifactIdFilename, versionFilename)) {
       return Response.status(Response.Status.NOT_FOUND).build();
     }
 
     boolean getChecksum = false;
-    if (StringUtils.endsWith(type, ".sha1")) {
+    if (StringUtils.endsWith(type, SHA1_EXTENSION)) {
       getChecksum = true;
     }
 
-    String url = buildBinaryUrl(artifactType, version, os, arch, StringUtils.removeEnd(type, ".sha1"));
-    return getBinaryWithChecksumValidation(url, version, getChecksum);
+    String url = buildBinaryUrl(version, classifierString, StringUtils.removeEnd(type, SHA1_EXTENSION));
+    return getBinary(url, version, getChecksum);
   }
 
-  /**
-   * Maps all requests to NPM binaries simulating a Maven 2 directory structure.
-   */
-  @GET
-  @Path("{groupIdPath:[a-zA-Z0-9\\-\\_]+(/[a-zA-Z0-9\\-\\_]+)*}"
-      + "/{artifactId:[a-zA-Z0-9\\-\\_\\.]+}"
-      + "/{version:\\d+(\\.\\d+)*}"
-      + "/{artifactIdFilename:[a-zA-Z0-9\\-\\_\\.]+}"
-      + "-{versionFilename:\\d+(\\.\\d+)*}"
-      + ".{type:[a-z]+(\\.[a-z]+)*(\\.sha1)?}")
-  @Timed
-  public Response getBinary(
-      @PathParam("groupIdPath") String groupIdPath,
-      @PathParam("artifactId") String artifactId,
-      @PathParam("version") String version,
-      @PathParam("artifactIdFilename") String artifactIdFilename,
-      @PathParam("versionFilename") String versionFilename,
-      @PathParam("type") String type) throws IOException {
-
-    String groupId = mapGroupId(groupIdPath);
-    if (!validateBasicParams(groupId, artifactId, version, artifactIdFilename, versionFilename)) {
-      return Response.status(Response.Status.NOT_FOUND).build();
-    }
-    ArtifactType artifactType = getArtifactType(artifactId);
-    if (artifactType != ArtifactType.NPM) {
-      return Response.status(Response.Status.NOT_FOUND).build();
-    }
-
-    boolean getChecksum = false;
-    if (StringUtils.endsWith(type, ".sha1")) {
-      getChecksum = true;
-    }
-
-    String url = buildBinaryUrl(artifactType, version, null, null, StringUtils.removeEnd(type, ".sha1"));
-    return getBinary(url, version, getChecksum, null);
-  }
-
-  private Response getBinaryWithChecksumValidation(String url, String version, boolean getChecksum) throws IOException {
-    // get original checksum from source directory
-    Checksums checksums = getChecksums(version);
-    if (checksums == null) {
-      log.info("File not found: {} - no checksum file found.", url);
-      return Response.status(Response.Status.NOT_FOUND).build();
-    }
-    String checksum = checksums.get(url);
-    if (checksum == null) {
-      log.info("File not found: {} - no checksum found in checkum file.", url);
-      return Response.status(Response.Status.NOT_FOUND).build();
-    }
-
-    return getBinary(url, version, getChecksum, checksum);
-  }
-
-  private Response getBinary(String url, String version, boolean getChecksum, String expectedChecksum) throws IOException {
+  private Response getBinary(String url, String version, boolean getChecksum) throws IOException {
     log.info("Proxy file: {}", url);
     HttpGet get = new HttpGet(url);
     HttpResponse response = httpClient.execute(get);
     if (response.getStatusLine().getStatusCode() == HttpServletResponse.SC_OK) {
       byte[] data = EntityUtils.toByteArray(response.getEntity());
-
-      // validate checksum
-      if (expectedChecksum != null) {
-        String remoteChecksum = DigestUtils.sha256Hex(data);
-        if (!StringUtils.equals(expectedChecksum, remoteChecksum)) {
-          log.warn("Reject file: {} - checksum comparison failed - expected: {}, actual: {}", url, expectedChecksum, remoteChecksum);
-          return Response.status(Response.Status.NOT_FOUND).build();
-        }
-      }
 
       if (getChecksum) {
         return Response.ok(DigestUtils.sha1Hex(data))
@@ -265,7 +215,7 @@ public class MavenProxyResource {
   }
 
   /**
-   * Validate that group/artifactid are correct and version is consistent within the path.
+   * Validate that groupId/artifactId are correct and version is consistent within the path.
    */
   private boolean validateBasicParams(
       String groupId,
@@ -282,92 +232,33 @@ public class MavenProxyResource {
     if (!StringUtils.equals(groupId, config.getGroupId())) {
       return false;
     }
-    if (!(StringUtils.equals(artifactId, config.getNodeJsArtifactId())
-        || StringUtils.equals(artifactId, config.getNpmArtifactId()))) {
+    if (!(StringUtils.equals(artifactId, config.getAemDispatcherArtifactId()))) {
+      return false;
+    }
+    if (!validateVersion(version)) {
       return false;
     }
     return true;
   }
 
-  private ArtifactType getArtifactType(String artifactId) {
-    if (StringUtils.equals(artifactId, config.getNodeJsArtifactId())) {
-      return ArtifactType.NODEJS;
-    }
-    if (StringUtils.equals(artifactId, config.getNpmArtifactId())) {
-      return ArtifactType.NPM;
-    }
-    throw new IllegalArgumentException("Invalid artifactId: " + artifactId);
+  private String buildBinaryUrl(String version, String classifierString, String type) throws IOException {
+
+    String aemBinariesRootUrl = config.getAemBinariesRootUrl();
+    String artifactKey = config.getAemDispatcherArtifactId() + "-" + classifierString + "-" + version + "." + type;
+    String urlPathPart = urlsCache.get(artifactKey);
+    URL url = new URL(aemBinariesRootUrl);
+    String urlProtocolHost = StringUtils.substringBefore(aemBinariesRootUrl, url.getPath());
+    return urlProtocolHost + urlPathPart;
   }
 
-  private Checksums getChecksums(String version) throws IOException {
-    String url = config.getNodeJsBinariesRootUrl()
-        + StringUtils.replace(config.getNodeJsChecksumUrl(), "${version}", version);
-    log.info("Get file: {}", url);
-    HttpGet get = new HttpGet(url);
-    HttpResponse response = httpClient.execute(get);
-    try {
-      if (response.getStatusLine().getStatusCode() == HttpServletResponse.SC_OK) {
-        return new Checksums(EntityUtils.toString(response.getEntity()));
-      }
-      else {
-        return null;
-      }
+  private boolean validateVersion(String version) {
+    String versionFromRootUrl = currentVersionCache.get();
+    if (StringUtils.equals(version, versionFromRootUrl)) {
+      return true;
     }
-    finally {
-      EntityUtils.consumeQuietly(response.getEntity());
+    else {
+      return false;
     }
-  }
-
-  private String getPomValidateUrl(ArtifactType artifactType, String version) {
-    switch (artifactType) {
-      case NODEJS:
-        return config.getNodeJsBinariesRootUrl()
-            + StringUtils.replace(config.getNodeJsChecksumUrl(), "${version}", version);
-      case NPM:
-        return config.getNodeJsBinariesRootUrl()
-            + StringUtils.replace(StringUtils.replace(config.getNpmBinariesUrl(), "${version}", version), "${type}", "tgz");
-      default:
-        throw new IllegalArgumentException("Illegal artifact type: " + artifactType);
-    }
-  }
-
-  private String buildBinaryUrl(ArtifactType artifactType, String version, String os, String arch, String type) {
-    String url;
-    switch (artifactType) {
-      case NODEJS:
-        if (StringUtils.equals(os, "windows")) {
-          if (isVersion4Up(version)) {
-            url = config.getNodeJsBinariesUrlWindows();
-          }
-          else if (StringUtils.equals(arch, "x86")) {
-            url = config.getNodeJsBinariesUrlWindowsX86Legacy();
-          }
-          else {
-            url = config.getNodeJsBinariesUrlWindowsX64Legacy();
-          }
-        }
-        else {
-          url = config.getNodeJsBinariesUrl();
-        }
-        break;
-      case NPM:
-        url = config.getNpmBinariesUrl();
-        break;
-      default:
-        throw new IllegalArgumentException("Illegal artifact type: " + artifactType);
-    }
-    url = config.getNodeJsBinariesRootUrl() + url;
-    url = StringUtils.replace(url, "${version}", StringUtils.defaultString(version));
-    url = StringUtils.replace(url, "${os}", StringUtils.defaultString(os));
-    url = StringUtils.replace(url, "${arch}", StringUtils.defaultString(arch));
-    url = StringUtils.replace(url, "${type}", StringUtils.defaultString(type));
-    return url;
-  }
-
-  private boolean isVersion4Up(String version) {
-    DefaultArtifactVersion givenVersion = new DefaultArtifactVersion(version);
-    DefaultArtifactVersion minVersion = new DefaultArtifactVersion("4.0.0");
-    return givenVersion.compareTo(minVersion) >= 0;
   }
 
 }

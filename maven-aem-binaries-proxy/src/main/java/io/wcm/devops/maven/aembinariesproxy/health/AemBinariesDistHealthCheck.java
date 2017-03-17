@@ -33,26 +33,27 @@ import com.codahale.metrics.health.HealthCheck;
 import io.wcm.devops.maven.aembinariesproxy.MavenProxyConfiguration;
 
 /**
- * Checks if the NodeJS root directory is available via HTTP.
+ * Checks if the AEM binaries root url is available via HTTP.
  */
-public class NodeJsDistHealthCheck extends HealthCheck {
+public class AemBinariesDistHealthCheck extends HealthCheck {
 
   private final MavenProxyConfiguration config;
   private final CloseableHttpClient httpClient;
 
-  private static final Logger log = LoggerFactory.getLogger(NodeJsDistHealthCheck.class);
+  private static final Logger log = LoggerFactory.getLogger(AemBinariesDistHealthCheck.class);
 
   /**
-   * @param config Configuration
+   * @param config maven proxy configuration
+   * @param httpClient http client
    */
-  public NodeJsDistHealthCheck(MavenProxyConfiguration config, CloseableHttpClient httpClient) {
+  public AemBinariesDistHealthCheck(MavenProxyConfiguration config, CloseableHttpClient httpClient) {
     this.config = config;
     this.httpClient = httpClient;
   }
 
   @Override
   protected Result check() throws Exception {
-    String url = config.getNodeJsBinariesRootUrl();
+    String url = config.getAemBinariesRootUrl();
 
     log.info("Validate file: {}", url);
     HttpGet get = new HttpGet(url);

@@ -2,30 +2,16 @@
 # See https://dropwizard.github.io/dropwizard/manual/configuration.html
 
 # Group Id to publish artifacts to
-groupId: org.nodejs.dist
+groupId: com.adobe
 
-# Artifact Id to publish NodeJS binaries
-nodeJsArtifactId: nodejs-binaries
+# Artifact Id to publish AEM binaries
+aemDispatcherArtifactId: dispatcher
 
-# Artifact Id to publish NPM binaries
-npmArtifactId: npm-binaries
+# Root URL to download AEM binaries from
+aemBinariesRootUrl: "https://www.adobeaemcloud.com/content/companies/public/adobe/dispatcher/dispatcher.html"
 
-# Root URL to download NodeJS binaries from
-nodeJsBinariesRootUrl: "https://nodejs.org/dist"
-
-# Url parts to download the different artifacts
-nodeJsBinariesUrl: "/v${version}/node-v${version}-${os}-${arch}.${type}"
-nodeJsBinariesUrlWindows: "/v${version}/win-${arch}/node.${type}"
-nodeJsBinariesUrlWindowsX86Legacy: "/v${version}/node.${type}"
-nodeJsBinariesUrlWindowsX64Legacy: "/v${version}/${arch}/node.${type}"
-npmBinariesUrl: "/npm/npm-${version}.${type}"
-
-# SHA-256 checksums file
-nodeJsChecksumUrl: "/v${version}/SHASUMS256.txt"
-
-# Sample versions for index page
-nodeJsSampleVersion: 4.4.0
-npmSampleVersion: 1.4.9
+# Url parts to download the artifacts
+aemBinariesUrlParts: "/${version}/dispatcher-${version}-${classifier}.${type}"
 
 # HTTP Client settings
 httpClient:
@@ -34,7 +20,7 @@ httpClient:
   timeToLive: 1h
   cookiesEnabled: false
   retries: 2
-  userAgent: Maven NodeJS Proxy
+  userAgent: Maven AemBinaries Proxy
 
 # Jetty configuration
 server:
@@ -47,8 +33,8 @@ logging:
   level: INFO
   appenders:
     - type: file
-      currentLogFilename: target/logs/maven-nodejs-proxy.log
+      currentLogFilename: target/logs/maven-aembinaries-proxy.log
       threshold: ALL
       archive: true
-      archivedLogFilenamePattern: target/logs/maven-nodejs-proxy-%d.log
+      archivedLogFilenamePattern: target/logs/maven-aembinaries-proxy-%d.log
       archivedFileCount: 5

@@ -25,7 +25,7 @@ import io.dropwizard.Application;
 import io.dropwizard.client.HttpClientBuilder;
 import io.dropwizard.setup.Bootstrap;
 import io.dropwizard.setup.Environment;
-import io.wcm.devops.maven.aembinariesproxy.health.NodeJsDistHealthCheck;
+import io.wcm.devops.maven.aembinariesproxy.health.AemBinariesDistHealthCheck;
 import io.wcm.devops.maven.aembinariesproxy.resource.MavenProxyResource;
 
 /**
@@ -51,13 +51,14 @@ public class MavenProxyApplication extends Application<MavenProxyConfiguration> 
 
     final MavenProxyResource resource = new MavenProxyResource(config, httpClient);
 
-    final NodeJsDistHealthCheck healthCheck = new NodeJsDistHealthCheck(config, httpClient);
-    environment.healthChecks().register("nodeJsDist", healthCheck);
+    final AemBinariesDistHealthCheck healthCheck = new AemBinariesDistHealthCheck(config, httpClient);
+    environment.healthChecks().register("aemBinariesDist", healthCheck);
 
     environment.jersey().register(resource);
   }
 
   //CHECKSTYLE:OFF
+  @SuppressWarnings("javadoc")
   public static void main(String[] args) throws Exception {
     new MavenProxyApplication().run(args);
   }
