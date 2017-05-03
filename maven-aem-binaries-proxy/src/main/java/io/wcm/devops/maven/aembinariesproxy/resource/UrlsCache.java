@@ -63,7 +63,7 @@ public class UrlsCache {
 
   private long updateDate = System.currentTimeMillis();
 
-  private final long CACHE_VALIDITY = 1000l * 60 * 60 * 24;
+  private static final long CACHE_VALIDITY = 1000L * 60 * 60 * 24;
 
   void putAll(Map<String, String> urlsFromIndex) {
     urls.putAll(urlsFromIndex);

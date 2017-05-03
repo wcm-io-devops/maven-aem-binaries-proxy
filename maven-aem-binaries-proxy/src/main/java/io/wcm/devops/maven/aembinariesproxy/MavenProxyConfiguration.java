@@ -32,7 +32,6 @@ import io.dropwizard.client.HttpClientConfiguration;
 /**
  * Configuration for Maven AEM Binaries Proxy.
  */
-@SuppressWarnings("javadoc")
 public class MavenProxyConfiguration extends Configuration {
 
   @NotEmpty

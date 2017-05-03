@@ -253,12 +253,7 @@ public class MavenProxyResource {
 
   private boolean validateVersion(String version) {
     String versionFromRootUrl = currentVersionCache.get();
-    if (StringUtils.equals(version, versionFromRootUrl)) {
-      return true;
-    }
-    else {
-      return false;
-    }
+    return StringUtils.equals(version, versionFromRootUrl);
   }
 
 }

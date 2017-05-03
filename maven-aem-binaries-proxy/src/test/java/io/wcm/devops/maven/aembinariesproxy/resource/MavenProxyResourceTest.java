@@ -36,8 +36,6 @@ import org.junit.Test;
 
 import io.dropwizard.testing.junit.ResourceTestRule;
 
-
-@SuppressWarnings("javadoc")
 public class MavenProxyResourceTest {
 
   // test with the following dispatcher versions

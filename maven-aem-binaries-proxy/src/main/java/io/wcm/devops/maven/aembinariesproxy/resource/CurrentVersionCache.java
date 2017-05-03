@@ -54,7 +54,7 @@ public class CurrentVersionCache {
   private final MavenProxyConfiguration config;
   private final CloseableHttpClient httpClient;
 
-  private final long CACHE_VALIDITY = 1000l * 60 * 60;
+  private static final long CACHE_VALIDITY = 1000L * 60 * 60;
 
   private static final Pattern PATTERN_VERSION_ELEMENT = Pattern.compile("<li>Version[:\\s\\d.]+</li>");
   private static final Pattern PATTERN_VERSION_STRING = Pattern.compile("\\d\\.\\d\\.\\d");

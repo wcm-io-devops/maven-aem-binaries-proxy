@@ -58,7 +58,6 @@ public class MavenProxyApplication extends Application<MavenProxyConfiguration> 
   }
 
   //CHECKSTYLE:OFF
-  @SuppressWarnings("javadoc")
   public static void main(String[] args) throws Exception {
     new MavenProxyApplication().run(args);
   }
